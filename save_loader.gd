@@ -1,0 +1,350 @@
+# SaveLoader contains the static functions to save and load objects.
+class_name SaveLoader
+
+# Include illegal character that can't exist in actual property names to avoid conflicts.
+const metadata_key : String = "+meta"
+
+# Object type - this is engine class/base class.
+const engine_class_key : String = "+engine_class"
+
+# Script type - this is the script class defined by [GlobalClass]/class_name
+const script_class_key : String = "+script_class"
+
+# Object UID - this is the save game's unique ID for the object.
+const uid_key : String = "+uid"
+
+# This key marks a dictionary as a reference to another object.
+const ref_key : String = "+ref"
+
+# This key contains a reference to the root object in save data.
+const root_key : String = "+root"
+
+# Check an object's savable properties. This is part of the receiver interface.
+static func __has_savable_properties(obj) -> bool:
+  if not obj is Object:
+    return false
+  return obj.has_method("save_properties")
+
+
+# Get an object's savable properties. This is part of the receiver interface.
+static func __get_savable_properties(obj) -> Array:
+  if not __has_savable_properties(obj):
+    return []
+  return obj.save_properties()
+
+
+# Get an object's class name as it would appear in ClassDB.
+static func __get_object_class_name(obj) -> StringName:
+  if not obj is Object:
+    return ""
+  return obj.get_class()
+
+
+static func __get_script_class_name(obj) -> String:
+  if not obj is Object:
+    return ""
+  return obj.get_script().get_global_name()
+
+
+# Check if an object complies with the savable receiver interface.
+static func __is_savable(obj) -> bool:
+  if not obj is Object: 
+    return false
+
+  if __get_object_class_name(obj) == "":
+    return false
+
+  if __get_script_class_name(obj) == "":
+    return false
+
+  # Object must have savable properties.
+  return __has_savable_properties(obj)
+
+
+static func __is_ref(obj) -> bool:
+  return obj is Dictionary and ref_key in obj
+
+
+static func __uid_from_ref(ref: Dictionary):
+  return ref.get(ref_key, "")
+
+
+static func __uid_from_object(obj):
+  return str(obj.get_instance_id())
+
+
+static func __object_to_ref(obj : Object) -> Dictionary:
+  return {
+    ref_key: __uid_from_object(obj)
+  }
+
+
+static func __ref_to_object(uid_to_object_map, ref) -> Object:
+  if not __is_ref(ref):
+    return null
+  var obj = uid_to_object_map.get(ref.get(ref_key, null), null)
+  if obj == null:
+    print("Error: Object " + str(ref) + " not found in save!")
+  return obj
+
+
+static func __build_object_metadata(obj) -> Dictionary:
+  return {
+    engine_class_key: __get_object_class_name(obj),
+    script_class_key: __get_script_class_name(obj),
+  }
+
+
+# Add a reference to save to the UID map.
+# Non-savable references and references that already exist in the map are ignored.
+static func __collect_one_reference(collected_objects, obj):
+  if not __is_savable(obj):
+    return
+  if obj in collected_objects:
+    return
+  collected_objects[obj] = true
+
+
+# Introspects an array and returns a list of references to collect.
+static func __collect_array(collected_objects, arr : Array) -> Array:
+  var to_collect = []
+  for elem in arr:
+    if __is_savable(elem):
+      to_collect.append(elem)
+    elif elem is Array:
+      to_collect.append_array(__collect_array(collected_objects, elem))
+    elif elem is Dictionary:
+      to_collect.append_array(__collect_dictionary(collected_objects, elem))
+
+  return to_collect
+
+
+static func __collect_dictionary(collected_objects, dict : Dictionary):
+  return __collect_array(collected_objects, dict.keys()) + __collect_array(collected_objects, dict.values())
+  
+
+static func __collect(obj : Object) -> Dictionary:
+  # Note: collect is different from save/load in that it is implemented iteratively.
+  # We expect reference chains to be potentially quite long, while nested dicts/arrays
+  # will be shallow enough to be handled recursively.
+  # For example, it is unlikely to see array[array[...until overflow...]], but it is
+  # entirely possible for object.prop.prop.prop... to be arbitrarily long.
+
+  if not __is_savable(obj):
+    return {}
+  var collected_objects = {}
+  var collect_queue = [obj]
+  # Use the engine's built-in ID because why not, it's guaranteed unique in context.
+  while collect_queue.size() > 0:
+    var next_obj = collect_queue.pop_front()
+    __collect_one_reference(collected_objects, next_obj)
+    var props = next_obj.save_properties()
+    for prop in props:
+      var prop_val = next_obj.get(prop)
+
+      # Handle savable objects, arrays, and dicts. Everything else is not relevant.
+      if __is_savable(prop_val):
+        collect_queue.append(prop_val)
+      elif prop_val is Array:
+       collect_queue.append_array(__collect_array(collected_objects, prop_val))
+      elif prop_val is Dictionary:
+        collect_queue.append_array(__collect_dictionary(collected_objects, prop_val))
+
+  return collected_objects
+
+
+static func __save_array(collected_objects, arr : Array) -> Array:
+  var save_arr = []
+  for elem in arr:
+    var elem_to_save = __save_prop(collected_objects, elem)
+    if elem_to_save == null:
+      continue
+    save_arr.append(elem_to_save)
+  return save_arr
+
+
+static func __save_dictionary(collected_objects, dict : Dictionary) -> Dictionary:
+  var save_dict = {}
+  for key in dict.keys():
+    var key_to_save = __save_prop(collected_objects, key)
+    if key_to_save == null:
+      continue
+    var val_to_save = __save_prop(collected_objects, dict[key])
+    if val_to_save == null:
+      continue
+    save_dict[key_to_save] = val_to_save
+  return save_dict
+
+
+static func __save_prop(collected_objects, prop_val):
+  if prop_val is Array:
+    return __save_array(collected_objects, prop_val)
+  elif prop_val is Dictionary:
+    return __save_dictionary(collected_objects, prop_val)
+  elif prop_val is Object:
+    if collected_objects.has(prop_val):
+      return __object_to_ref(prop_val)
+    return null
+  else:
+    return prop_val
+
+
+# Save this save data.
+static func save(to_save: Object) -> String:
+  var collected_objects = __collect(to_save)
+  var save_dict = {}
+  save_dict[root_key] = __object_to_ref(to_save)
+  for obj in collected_objects.keys():
+    var obj_dict = {}
+    obj_dict[metadata_key] = __build_object_metadata(obj)
+    var props = __get_savable_properties(obj)
+    for prop_name in props:
+      var prop_to_save = __save_prop(collected_objects, obj.get(prop_name))
+      if prop_to_save == null:
+        continue
+      obj_dict[prop_name] = prop_to_save
+    save_dict[__uid_from_object(obj)] = obj_dict
+ 
+  var json = JSON.new()
+  return json.stringify(JSON.from_native(save_dict))# json.stringify(JSON.from_native(save_dict))
+
+
+static func __load_prop(objects_out, obj_data):
+  if obj_data is Dictionary:
+    # A ref is also a dictionary, so we check for that first.
+    var resolved_ref = __ref_to_object(objects_out, obj_data)
+    if resolved_ref != null:
+      return resolved_ref
+    return __load_dictionary(objects_out, obj_data)
+  if obj_data is Array:
+    return __load_array(objects_out, obj_data)
+  
+  return obj_data
+
+
+static func __load_array(objects_out, obj_data):
+  var arr = []
+  for elem in obj_data:
+    var elem_val = __load_prop(objects_out, elem)
+    if elem_val == null:
+      print("Warning: skipping array element due to load failure.")
+      continue
+    arr.append(elem_val)
+  return arr
+
+
+static func __load_dictionary(objects_out, obj_data):
+  var dict = {}
+  for key in obj_data.keys():
+    # Dictionary keys require extra handling. JSON saves dicts as json
+    # objects, converting keys to strings. We need to convert them back.
+    # However, simply using str_to_var is and ACE-level vulnerability.
+    # Therefore, we only parse our own abstraction.
+
+    var key_val = __load_prop(objects_out, key)
+    if key_val == null:
+      print("Warning: skipping dictionary tuple due to key load failure.")
+      continue
+    var val_val = __load_prop(objects_out, obj_data[key])
+    if val_val == null:
+      print("Warning: skipping dictionary tuple due to value load failure.")
+      continue
+    dict[key_val] = val_val
+  return dict
+
+
+static func __object_instance_from_metadata(metadata):
+  # Make the object.
+  var obj = ClassDB.instantiate(metadata[engine_class_key])
+  if obj == null:
+    print("Failed to instantiate object of type " + metadata[engine_class_key])
+    return null
+  
+  # Attach script to object.
+  var script_info = null
+  for global in ProjectSettings.get_global_class_list():
+    if global["class"] == metadata[script_class_key]:
+      script_info = global
+      break
+
+  if script_info == null:
+    push_error("Save incompatible: global script class " + metadata[script_class_key] + " does not exist in this project!")
+    return null
+
+  if script_info["base"] != metadata[engine_class_key]:
+    push_error("Save incompatible: script class " + metadata[script_class_key] + " does not extend object class " + metadata[engine_class_key] + "!")
+    return null
+
+  # Get the cached script resource from the engine. Either use cached or load it.
+  if not ResourceLoader.has_cached(script_info["path"]):
+    ResourceLoader.load(script_info["path"])
+  var script = ResourceLoader.get_cached_ref(script_info["path"])
+  obj.set_script(script)
+  
+  return obj
+
+
+# Load save data into an object.
+static func load(save_str: String) -> Object:
+  var json = JSON.new()
+  var err = json.parse(save_str)
+  if err != OK:
+    print("Save corrupt: failed to parse save data [Error " + str(err) + "] at line " + str(json.get_error_line()) + ": " + json.get_error_message()) 
+    return
+  var objects_out = {}
+  var object_data = JSON.to_native(json.data)
+  if object_data == null:
+    print("Save corrupt: save data missing object list")
+    return null
+
+  if not object_data.has(root_key):
+    push_error("Save corrupt: save does not specify a root object!")
+    return null
+
+  var root_ref = object_data[root_key]
+  if __uid_from_ref(root_ref) == "":
+    push_error("Save corrupt: save root object has invalid reference")
+    return null
+
+  # Instantiate all objects to be loaded.
+  for uid in object_data.keys():
+    # Skip metadata.
+    if uid in [root_key]:
+      continue
+    var obj_dict = object_data[uid]
+    if metadata_key not in obj_dict:
+      push_error("Save corrupt: save object " + uid + " missing metadata!")
+      return null
+    var obj = __object_instance_from_metadata(obj_dict[metadata_key])
+    if obj == null:
+      push_error("Failed to load object " + uid)
+      return null
+    objects_out[uid] = obj
+  
+  # Populate properties.
+  for uid in objects_out.keys():
+    var obj = objects_out[uid]
+    var obj_data = object_data[uid]
+
+    # Note: We load what we find in the file, rather than what we expect
+    # to load from the object's save_properties method. This is to allow
+    # for implicit backwards-compatibility.
+    # This is safe because obj.set() will no-op on nonexistent properties.
+    for prop_name in obj_data.keys():
+      # Skip reserved keys.
+      if prop_name in [engine_class_key, uid_key]:
+        continue
+      var prop_val = obj_data[prop_name]
+      var loaded = __load_prop(objects_out, prop_val)
+      if loaded == null:
+        push_error("Failed to load property " + prop_name + " of object " + uid)
+        return null
+      obj.set(prop_name, loaded)
+
+  # Call on_load_complete.
+  for obj in objects_out.values():
+    if obj.has_method("on_load_complete"):
+      obj.on_load_complete()
+
+  print("returning [" + __uid_from_ref(root_ref) + "] from " + str(objects_out))
+  return __ref_to_object(objects_out, root_ref)
