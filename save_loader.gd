@@ -19,6 +19,20 @@ const ref_key : String = "+ref"
 # This key contains a reference to the root object in save data.
 const root_key : String = "+root"
 
+# This key marks a collection as a dictionary.
+const dict_key : String = "+dict"
+
+# This key marks the key of a dictionary tuple.
+const key_key : String = "+key"
+
+# This key marks the value of a dictionary tuple.
+const value_key : String = "+value"
+
+# Godot's JSON parses everything as a float, so we add annotations to 
+# numeric types inside arrays and dicts.
+const int_key : String = "+int"
+const float_key : String = "+float"
+
 # Check an object's savable properties. This is part of the receiver interface.
 static func __has_savable_properties(obj) -> bool:
   if not obj is Object:
@@ -65,6 +79,10 @@ static func __is_ref(obj) -> bool:
   return obj is Dictionary and ref_key in obj
 
 
+static func __is_serialized_dict(obj) -> bool:
+  return dict_key in obj
+
+
 static func __uid_from_ref(ref: Dictionary):
   return ref.get(ref_key, "")
 
@@ -77,6 +95,23 @@ static func __object_to_ref(obj : Object) -> Dictionary:
   return {
     ref_key: __uid_from_object(obj)
   }
+
+
+static func __make_numeric(obj) -> Dictionary:
+  if obj is int:
+    return {int_key: obj}
+  elif obj is float:
+    return {float_key: obj}
+  return {}
+
+
+static func __get_numeric(obj):
+  if obj is Dictionary:
+    if int_key in obj:
+      return obj[int_key] as int
+    elif float_key in obj:
+      return obj[float_key] as float
+  return null 
 
 
 static func __ref_to_object(uid_to_object_map, ref) -> Object:
@@ -165,6 +200,7 @@ static func __save_array(collected_objects, arr : Array) -> Array:
 
 static func __save_dictionary(collected_objects, dict : Dictionary) -> Dictionary:
   var save_dict = {}
+  save_dict[dict_key] = []
   for key in dict.keys():
     var key_to_save = __save_prop(collected_objects, key)
     if key_to_save == null:
@@ -172,7 +208,8 @@ static func __save_dictionary(collected_objects, dict : Dictionary) -> Dictionar
     var val_to_save = __save_prop(collected_objects, dict[key])
     if val_to_save == null:
       continue
-    save_dict[key_to_save] = val_to_save
+    var save_tuple = {key_key: key_to_save, value_key: val_to_save}
+    save_dict[dict_key].append(save_tuple)
   return save_dict
 
 
@@ -185,8 +222,9 @@ static func __save_prop(collected_objects, prop_val):
     if collected_objects.has(prop_val):
       return __object_to_ref(prop_val)
     return null
-  else:
-    return prop_val
+  elif prop_val is int or prop_val is float:
+    return __make_numeric(prop_val)
+  return prop_val
 
 
 # Save this save data.
@@ -206,15 +244,18 @@ static func save(to_save: Object) -> String:
     save_dict[__uid_from_object(obj)] = obj_dict
  
   var json = JSON.new()
-  return json.stringify(JSON.from_native(save_dict))# json.stringify(JSON.from_native(save_dict))
+  return json.stringify(save_dict)
 
 
 static func __load_prop(objects_out, obj_data):
   if obj_data is Dictionary:
-    # A ref is also a dictionary, so we check for that first.
+    # If we find a dictionary, it can be a ref, a collection, or an object
     var resolved_ref = __ref_to_object(objects_out, obj_data)
     if resolved_ref != null:
       return resolved_ref
+    var resolved_numeric = __get_numeric(obj_data)
+    if resolved_numeric != null:
+      return resolved_numeric
     return __load_dictionary(objects_out, obj_data)
   if obj_data is Array:
     return __load_array(objects_out, obj_data)
@@ -235,17 +276,15 @@ static func __load_array(objects_out, obj_data):
 
 static func __load_dictionary(objects_out, obj_data):
   var dict = {}
-  for key in obj_data.keys():
-    # Dictionary keys require extra handling. JSON saves dicts as json
-    # objects, converting keys to strings. We need to convert them back.
-    # However, simply using str_to_var is and ACE-level vulnerability.
-    # Therefore, we only parse our own abstraction.
-
-    var key_val = __load_prop(objects_out, key)
+  if not __is_serialized_dict(obj_data):
+    print("Warning: dictionary is not a ref or serialized dict, skipping.")
+    return null
+  for tuple in obj_data[dict_key]:
+    var key_val = __load_prop(objects_out, tuple[key_key])
     if key_val == null:
       print("Warning: skipping dictionary tuple due to key load failure.")
       continue
-    var val_val = __load_prop(objects_out, obj_data[key])
+    var val_val = __load_prop(objects_out, tuple[value_key])
     if val_val == null:
       print("Warning: skipping dictionary tuple due to value load failure.")
       continue
@@ -272,7 +311,7 @@ static func __object_instance_from_metadata(metadata):
     return null
 
   if script_info["base"] != metadata[engine_class_key]:
-    push_error("Save incompatible: script class " + metadata[script_class_key] + " does not extend object class " + metadata[engine_class_key] + "!")
+    push_error("Save incompatible: script class " + metadata[script_class_key] + " does not extend object class " + metadata[engine_class_key] + "(extends " + script_info["base"] + " instead).")
     return null
 
   # Get the cached script resource from the engine. Either use cached or load it.
@@ -292,7 +331,7 @@ static func load(save_str: String) -> Object:
     print("Save corrupt: failed to parse save data [Error " + str(err) + "] at line " + str(json.get_error_line()) + ": " + json.get_error_message()) 
     return
   var objects_out = {}
-  var object_data = JSON.to_native(json.data)
+  var object_data = json.data
   if object_data == null:
     print("Save corrupt: save data missing object list")
     return null
@@ -326,19 +365,28 @@ static func load(save_str: String) -> Object:
     var obj = objects_out[uid]
     var obj_data = object_data[uid]
 
-    # Note: We load what we find in the file, rather than what we expect
-    # to load from the object's save_properties method. This is to allow
-    # for implicit backwards-compatibility.
-    # This is safe because obj.set() will no-op on nonexistent properties.
+    var known_fields = obj.save_properties()
+    if known_fields == null:
+      known_fields = []
+
     for prop_name in obj_data.keys():
       # Skip reserved keys.
-      if prop_name in [engine_class_key, uid_key]:
+      if prop_name in [metadata_key]:
+        continue
+      # Skip fields that aren't savable properties on the target object, with a warning.
+      # This is important for security, so a malicious save file can't instantiate
+      # any global class and load its properties. (It can instantiate any global class, but
+      # the attack surface is reduced to savable properties only.)
+      if prop_name not in known_fields:
+        print("Warning: skipping unknown property " + prop_name + " of object " + uid)
         continue
       var prop_val = obj_data[prop_name]
       var loaded = __load_prop(objects_out, prop_val)
       if loaded == null:
         push_error("Failed to load property " + prop_name + " of object " + uid)
         return null
+
+      # If the receiving property is an int, convert the json float to int.
       obj.set(prop_name, loaded)
 
   # Call on_load_complete.
@@ -346,5 +394,4 @@ static func load(save_str: String) -> Object:
     if obj.has_method("on_load_complete"):
       obj.on_load_complete()
 
-  print("returning [" + __uid_from_ref(root_ref) + "] from " + str(objects_out))
   return __ref_to_object(objects_out, root_ref)
