@@ -119,7 +119,7 @@ static func __ref_to_object(uid_to_object_map, ref) -> Object:
     return null
   var obj = uid_to_object_map.get(ref.get(ref_key, null), null)
   if obj == null:
-    print("Error: Object " + str(ref) + " not found in save!")
+    print("Bad reference: Object " + str(ref) + " not found in save!")
   return obj
 
 
@@ -296,7 +296,7 @@ static func __object_instance_from_metadata(metadata):
   # Make the object.
   var obj = ClassDB.instantiate(metadata[engine_class_key])
   if obj == null:
-    print("Failed to instantiate object of type " + metadata[engine_class_key])
+    print("Save incompatible: Failed to instantiate object of type " + metadata[engine_class_key])
     return null
   
   # Attach script to object.
@@ -382,12 +382,19 @@ static func load(save_str: String) -> Object:
         continue
       var prop_val = obj_data[prop_name]
       var loaded = __load_prop(objects_out, prop_val)
+
       if loaded == null:
         push_error("Failed to load property " + prop_name + " of object " + uid)
         return null
 
-      # If the receiving property is an int, convert the json float to int.
-      obj.set(prop_name, loaded)
+      # If the receiving property is an array or dict, use .assign() to support typed array/dict.
+      # Collection type hints are a massive piece of duct tape. A typed array/dict is still an 
+      # Array/Dictionary for the "is" keyword, but it is not mutually assignable with Object.set() or =.
+      var target_prop = obj.get(prop_name)
+      if target_prop is Array or target_prop is Dictionary:
+        target_prop.assign(loaded)
+      else:
+        obj.set(prop_name, loaded)
 
   # Call on_load_complete.
   for obj in objects_out.values():

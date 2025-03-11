@@ -97,7 +97,6 @@ func test_save_nested_objects_in_dict_key():
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  print(save_data)
   var loaded_obj = SaveLoader.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.dict_prop.keys()[0].int_prop, obj.dict_prop.keys()[0].int_prop)
@@ -145,3 +144,50 @@ func test_save_mixed_arrays():
 func test_load_invalid_data():
   var loaded_obj = SaveLoader.load("whargarblgarbage")
   assert_null(loaded_obj)
+
+
+func test_save_typed_array():
+  var obj = TestObject.new()
+  # Can't set a literal here because Godot can't do it yet.
+  obj.typed_array_prop.append(1)
+  obj.typed_array_prop.append(2)
+  obj.typed_array_prop.append(3)
+  print("TYPE >> " + type_string(typeof(obj.typed_array_prop)))
+  print("VAL >> " + str(obj.typed_array_prop))
+  var save_data = SaveLoader.save(obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  print(save_data)
+  var loaded_obj = SaveLoader.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_eq(loaded_obj.typed_array_prop, obj.typed_array_prop)
+
+
+func test_save_typed_dict():
+  var obj = TestObject.new()
+  # Can't set a literal here because Godot can't do it yet.
+  obj.typed_dict_prop["a"] = 1
+  obj.typed_dict_prop["b"] = 2
+  obj.typed_dict_prop["c"] = 3
+  var save_data = SaveLoader.save(obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  print(save_data)
+  var loaded_obj = SaveLoader.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_eq(loaded_obj.typed_dict_prop, obj.typed_dict_prop)
+
+
+func test_save_enum():
+  var obj = TestObject.new()
+  obj.enum_prop = TestObject.TestEnum.TEST2
+  var save_data = SaveLoader.save(obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  print(save_data)
+  var loaded_obj = SaveLoader.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_eq(loaded_obj.enum_prop, obj.enum_prop)
