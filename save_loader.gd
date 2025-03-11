@@ -310,10 +310,6 @@ static func __object_instance_from_metadata(metadata):
     push_error("Save incompatible: global script class " + metadata[script_class_key] + " does not exist in this project!")
     return null
 
-  if script_info["base"] != metadata[engine_class_key]:
-    push_error("Save incompatible: script class " + metadata[script_class_key] + " does not extend object class " + metadata[engine_class_key] + "(extends " + script_info["base"] + " instead).")
-    return null
-
   # Get the cached script resource from the engine. Either use cached or load it.
   if not ResourceLoader.has_cached(script_info["path"]):
     ResourceLoader.load(script_info["path"])
