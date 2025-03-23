@@ -57,6 +57,8 @@ static func __get_object_class_name(obj) -> StringName:
 static func __get_script_class_name(obj) -> String:
   if not obj is Object:
     return ""
+  if obj.get_script() == null:
+    return ""
   return obj.get_script().get_global_name()
 
 
@@ -229,6 +231,9 @@ static func __save_prop(collected_objects, prop_val):
 
 # Save this save data.
 static func save(to_save: Object) -> String:
+  if to_save == null:
+    push_error("Save failed: root object is null!")
+    return ""
   var collected_objects = __collect(to_save)
   var save_dict = {}
   save_dict[root_key] = __object_to_ref(to_save)
