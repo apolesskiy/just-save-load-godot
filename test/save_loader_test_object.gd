@@ -1,4 +1,4 @@
-class_name TestObject
+class_name TestObject extends Resource
 
 enum TestEnum {
   TEST1,

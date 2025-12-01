@@ -28,17 +28,6 @@ const key_key : String = "+key"
 # This key marks the value of a dictionary tuple.
 const value_key : String = "+value"
 
-# Godot's JSON parses everything as a float, so we add annotations to 
-# numeric types inside arrays and dicts.
-const int_key : String = "+int"
-const float_key : String = "+float"
-
-# Marker for built-in variants that can be str_to_var'd safely.
-const builtin_key : String = "+builtin"
-
-# Marker for resource UID references.
-const ruid_key : String = "+res"
-
 # Check an object's savable properties. This is part of the receiver interface.
 static func __has_savable_properties(obj) -> bool:
   if not obj is Object:
@@ -105,142 +94,6 @@ static func __object_to_ref(obj : Object) -> Dictionary:
   }
 
 
-static func __make_numeric(obj) -> Dictionary:
-  if obj is int:
-    return {int_key: obj}
-  elif obj is float:
-    return {float_key: obj}
-  return {}
-
-
-static func __get_numeric(obj):
-  if obj is Dictionary:
-    if int_key in obj:
-      return obj[int_key] as int
-    elif float_key in obj:
-      return obj[float_key] as float
-  return null 
-
-
-# These are the built-in variants that  we deem safe to serialize directly.
-# As they are not Objects, they should not have any references to other objects.
-static func __is_builtin(obj) -> bool:
-  return obj is Vector2 or\
-    obj is Vector2i or\
-    obj is Vector3 or\
-    obj is Vector3i or\
-    obj is Color or\
-    obj is Rect2 or\
-    obj is Rect2i or\
-    obj is Transform2D or\
-    obj is Plane or\
-    obj is Quaternion or\
-    obj is AABB or\
-    obj is Basis or\
-    obj is Transform3D or\
-    obj is RID or\
-    obj is PackedByteArray or\
-    obj is PackedInt32Array or\
-    obj is PackedInt64Array or\
-    obj is PackedFloat32Array or\
-    obj is PackedFloat64Array or\
-    obj is PackedStringArray or\
-    obj is PackedVector2Array or\
-    obj is PackedVector3Array or\
-    obj is PackedColorArray 
-
-
-static func __make_builtin(prop) -> Dictionary:
-  if not __is_builtin(prop):
-    return {}
-  return {builtin_key: var_to_str(prop)}
-
-
-static func __get_builtin(obj):
-  if not obj is Dictionary:
-    return null
-  if builtin_key not in obj:
-    return null
-  var builtin = obj[builtin_key]
-  # Builtin serialization is a string "<BuiltinType>(datadatadata)"
-  var builtin_type = builtin.substr(0, builtin.find("("))
-
-  match builtin_type:
-    "Vector2":
-      return str_to_var(builtin) as Vector2
-    "Vector2i":
-      return str_to_var(builtin) as Vector2i
-    "Vector3":
-      return str_to_var(builtin) as Vector3
-    "Vector3i":
-      return str_to_var(builtin) as Vector3i
-    "Color":
-      return str_to_var(builtin) as Color
-    "Rect2":
-      return str_to_var(builtin) as Rect2
-    "Rect2i":
-      return str_to_var(builtin) as Rect2i
-    "Transform2D":
-      return str_to_var(builtin) as Transform2D
-    "Plane":
-      return str_to_var(builtin) as Plane
-    "Quaternion":
-      return str_to_var(builtin) as Quaternion
-    "AABB":
-      return str_to_var(builtin) as AABB
-    "Basis":
-      return str_to_var(builtin) as Basis
-    "Transform3D":
-      return str_to_var(builtin) as Transform3D
-    "RID":
-      return str_to_var(builtin) as RID
-    "PackedByteArray":
-      return str_to_var(builtin) as PackedByteArray
-    "PackedInt32Array":
-      return str_to_var(builtin) as PackedInt32Array
-    "PackedInt64Array":
-      return str_to_var(builtin) as PackedInt64Array
-    "PackedFloat32Array":
-      return str_to_var(builtin) as PackedFloat32Array
-    "PackedFloat64Array":
-      return str_to_var(builtin) as PackedFloat64Array
-    "PackedStringArray":
-      return str_to_var(builtin) as PackedStringArray
-    "PackedVector2Array":
-      return str_to_var(builtin) as PackedVector2Array
-    "PackedVector3Array":
-      return str_to_var(builtin) as PackedVector3Array
-    "PackedColorArray":
-      return str_to_var(builtin) as PackedColorArray
-    _:
-      push_warning("Invalid built-in type: " + builtin_type)
-      return null
-
-
-static func __is_exported_resource(obj) -> bool:
-  return obj is Resource \
-    and obj.resource_path != "" \
-    and ResourceLoader.get_resource_uid(obj.resource_path) != ResourceUID.INVALID_ID
-
-
-static func __make_exported_resource(prop) -> Dictionary:
-  if not __is_exported_resource(prop):
-    return {}
-  return {ruid_key: ResourceUID.id_to_text(ResourceLoader.get_resource_uid(prop.resource_path))}
-
-
-static func __get_exported_resource(obj):
-  if not obj is Dictionary:
-    return null
-  if ruid_key not in obj:
-    return null
-  var ruid = ResourceUID.text_to_id(obj[ruid_key])
-  var res = ResourceLoader.load(ResourceUID.get_id_path(ruid))
-  if res == null:
-    print("Warning: failed to load exported resource with UID " + ruid)
-  return res
-
-
 static func __ref_to_object(uid_to_object_map, ref) -> Object:
   if not __is_ref(ref):
     return null
@@ -263,6 +116,10 @@ static func __collect_one_reference(collected_objects, obj):
   if not __is_savable(obj):
     return
   if obj in collected_objects:
+    return
+  # Note resources with a UID are special. We treat them as a value type because they are cached by
+  # ResourceLoader.
+  if  JSLGResourceUID.is_exported_resource(obj):
     return
   collected_objects[obj] = true
 
@@ -287,10 +144,9 @@ static func __collect_dictionary(collected_objects, dict : Dictionary):
 
 static func __collect(obj : Object) -> Dictionary:
   # Note: collect is different from save/load in that it is implemented iteratively.
-  # We expect reference chains to be potentially quite long, while nested dicts/arrays
+  # We expect reference chains to be arbitrarily long/cyclic, while nested dicts/arrays
   # will be shallow enough to be handled recursively.
-  # For example, it is unlikely to see array[array[...until overflow...]], but it is
-  # entirely possible for object.prop.prop.prop... to be arbitrarily long.
+  # For example, it is unlikely to see array[array[...until overflow...]].
 
   if not __is_savable(obj):
     return {}
@@ -304,7 +160,7 @@ static func __collect(obj : Object) -> Dictionary:
     for prop in props:
       var prop_val = next_obj.get(prop)
 
-      # Handle savable objects, arrays, and dicts. Everything else is not relevant.
+      # Handle savable objects, arrays, and dicts. Everything else can't be a ref so is not relevant.
       if __is_savable(prop_val):
         collect_queue.append(prop_val)
       elif prop_val is Array:
@@ -346,16 +202,16 @@ static func __save_prop(collected_objects, prop_val):
   elif prop_val is Dictionary:
     return __save_dictionary(collected_objects, prop_val)
   # Check for exported resources before checking for generic Object.
-  elif __is_exported_resource(prop_val):
-    return __make_exported_resource(prop_val)
+  elif JSLGResourceUID.is_exported_resource(prop_val):
+    return JSLGResourceUID.make_exported_resource(prop_val)
   elif prop_val is Object:
     if collected_objects.has(prop_val):
       return __object_to_ref(prop_val)
     return null
   elif prop_val is int or prop_val is float:
-    return __make_numeric(prop_val)
-  elif __is_builtin(prop_val):
-    return __make_builtin(prop_val)
+    return JSLGNumeric.make_numeric(prop_val)
+  elif JSLGBuiltIn.is_builtin(prop_val):
+    return JSLGBuiltIn.make_builtin(prop_val)
   return prop_val
 
 
@@ -387,13 +243,13 @@ static func __load_prop(objects_out, obj_data):
     var resolved_ref = __ref_to_object(objects_out, obj_data)
     if resolved_ref != null:
       return resolved_ref
-    var resolved_numeric = __get_numeric(obj_data)
+    var resolved_numeric = JSLGNumeric.get_numeric(obj_data)
     if resolved_numeric != null:
       return resolved_numeric
-    var resolved_builtin = __get_builtin(obj_data)
+    var resolved_builtin = JSLGBuiltIn.get_builtin(obj_data)
     if resolved_builtin != null:
       return resolved_builtin
-    var resolved_resource = __get_exported_resource(obj_data)
+    var resolved_resource = JSLGResourceUID.get_exported_resource(obj_data)
     if resolved_resource != null:
       return resolved_resource
     return __load_dictionary(objects_out, obj_data)

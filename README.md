@@ -65,9 +65,20 @@ It is highly recommended to use [GodotEnv](https://github.com/chickensoft-games/
 * Copy `addons/just-save-load-godot` to your addons folder.
 
 ## How It Works
+
+### Built-in Types
+Built-ins are saved using str_to_var/var_to_str. However, the type of the builtin is checked against known permitted types before deserialization.
+
+### Objects
 To save, the SaveLoader traverses an object's property tree, and finds any other savable objects, and adds them to an object catalog. Then, the loader goes through the catalog, saving all of the objects' properties and replacing references to other objects with reference markers. The output of this operation is saved to the output.
 
 To load, the SaveLoader parses the object catalog from the dictionary, and instantiates empty copies of each object. It then initializes all savable properties, replacing object reference markers with objects from the catalog. It then returns the root object that was passed into the save() method.
+
+### Resources
+Resources packaged with the game are saved as their UID. On load, the property value is set to the resource reference in ResourceLoader. This is true even for resources that are savable - that is, a savable resource loaded from a path is saved by UID, but a savable resource created dynamically (or with Resource.duplicate()) will be saved as an object.
+
+### Arrays and Dictionaries
+Arrays and dictionaries are both stored as JSON arrays to support Godot's arbitrary dictionary types. Values within a dictionary/array are stored like any other property.
 
 ## Why not...
 
@@ -75,11 +86,11 @@ To load, the SaveLoader parses the object catalog from the dictionary, and insta
 "Resources considered harmful" for data that changes often or is exposed to players.
 * Loading resources from outside of res:// is a known ACE vector (https://github.com/godotengine/godot-proposals/issues/4925).
 * Renaming variables in resource scripts causes data loss that is difficult to recover from (https://github.com/godotengine/godot-proposals/issues/3152).
+* Resources do not support reference loops (https://github.com/godotengine/godot-proposals/issues/2657).
 
 ### ConfigFile?
 * It has the same ACE issue as resources. The underlying issue is that str_to_var can load any object, which includes `script` or objects containing `script`. JSON lets you disallow objects during deserialization.
 
 ### Plain JSON?
 * Doesn't give control over what to save and what not to save.
-* Doesn't save objects unless you turn it on explicitly, at which point it is exposed to
-  the same ACE as everything else.
+* Doesn't save objects unless you turn it on explicitly, at which point it is exposed to the same ACE as everything else.
