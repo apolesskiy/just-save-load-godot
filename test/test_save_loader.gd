@@ -189,6 +189,7 @@ func test_save_enum():
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.enum_prop, obj.enum_prop)
 
+
 func test_save_builtin_types():
   var obj = TestObject.new()
 
@@ -246,6 +247,7 @@ func test_save_builtin_types():
   assert_eq(loaded_obj.packed_vector3_array_prop, obj.packed_vector3_array_prop)
   assert_eq(loaded_obj.packed_color_array_prop, obj.packed_color_array_prop)
 
+
 func test_save_resource_reference():
   var preloaded_resource = preload("uid://itov6b543ess") # The default icon.svg
   var obj = TestObject.new()
@@ -255,9 +257,24 @@ func test_save_resource_reference():
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  print(save_data)
   var loaded_obj = SaveLoader.load(save_data)
   assert_not_null(loaded_obj)
   assert_not_null(loaded_obj.exported_resource_ref)
   assert_eq(loaded_obj.exported_resource_ref, obj.exported_resource_ref)
   assert_eq(loaded_obj.exported_resource_ref, preloaded_resource)
+
+
+func test_savable_resource_with_uid_use_cached():
+  var preloaded_test_object = preload("uid://c0l7bnq5u8wyx") # test_resource_saved.tres, which is a TestObject.
+  var obj = TestObject.new()
+  obj.exported_resource_ref = preloaded_test_object
+
+  var save_data = SaveLoader.save(obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  print(save_data)
+  var loaded_obj = SaveLoader.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_not_null(loaded_obj.exported_resource_ref)
+  assert_eq(loaded_obj.exported_resource_ref, preloaded_test_object) # No new instance created.

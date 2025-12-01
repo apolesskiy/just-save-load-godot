@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="TestObject" load_steps=2 format=3 uid="uid://c0l7bnq5u8wyx"]
+
+[ext_resource type="Script" uid="uid://ctr3dgk1tetyw" path="res://test/save_loader_test_object.gd" id="1_wnhob"]
+
+[resource]
+script = ExtResource("1_wnhob")
+metadata/_custom_type_script = "uid://ctr3dgk1tetyw"
