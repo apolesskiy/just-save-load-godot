@@ -158,7 +158,6 @@ func test_save_typed_array():
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  print(save_data)
   var loaded_obj = SaveLoader.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.typed_array_prop, obj.typed_array_prop)
@@ -174,7 +173,6 @@ func test_save_typed_dict():
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  print(save_data)
   var loaded_obj = SaveLoader.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.typed_dict_prop, obj.typed_dict_prop)
@@ -187,7 +185,6 @@ func test_save_enum():
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  print(save_data)
   var loaded_obj = SaveLoader.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.enum_prop, obj.enum_prop)
@@ -248,3 +245,19 @@ func test_save_builtin_types():
   assert_eq(loaded_obj.packed_vector2_array_prop, obj.packed_vector2_array_prop)
   assert_eq(loaded_obj.packed_vector3_array_prop, obj.packed_vector3_array_prop)
   assert_eq(loaded_obj.packed_color_array_prop, obj.packed_color_array_prop)
+
+func test_save_resource_reference():
+  var preloaded_resource = preload("uid://itov6b543ess") # The default icon.svg
+  var obj = TestObject.new()
+  obj.exported_resource_ref = preloaded_resource
+
+  var save_data = SaveLoader.save(obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  print(save_data)
+  var loaded_obj = SaveLoader.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_not_null(loaded_obj.exported_resource_ref)
+  assert_eq(loaded_obj.exported_resource_ref, obj.exported_resource_ref)
+  assert_eq(loaded_obj.exported_resource_ref, preloaded_resource)
