@@ -50,6 +50,22 @@ var my_class_2 = SaveLoader.load(saved)
 print my_class_2.want_to_save
 ```
 
+## Setup
+
+### GodotEnv (Recommended)
+It is highly recommended to use [GodotEnv](https://github.com/chickensoft-games/GodotEnv) to manage your project's addons.
+
+* Add the following to `addons.jsonc`:
+```
+"just-save-load-godot": {
+      "url": "git@github.com:apolesskiy/just-save-load-godot",
+      "subfolder": "addons/just-save-load-godot"
+}
+```
+
+### Manual
+* Copy `addons/just-save-load-godot` to your addons folder.
+
 ## How It Works
 To save, the SaveLoader traverses an object's property tree, and finds any other savable objects, and adds them to an object catalog. Then, the loader goes through the catalog, saving all of the objects' properties and replacing references to other objects with reference markers. The output of this operation is saved to the output.
 
