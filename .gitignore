@@ -1,1 +1,7 @@
 *.uid
+.godot
+.addons
+addons/*
+!addons/just-save-load-godot
+!addons/.editorconfig
+.addons/*
