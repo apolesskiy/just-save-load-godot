@@ -1,8 +1,8 @@
-class_name TestSaveLoader extends GutTest
+class_name JSLGTestSaveLoader extends GutTest
 
 
 func test_save_simple():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   var save_data = SaveLoader.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
@@ -11,10 +11,12 @@ func test_save_simple():
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.int_prop, obj.int_prop)
   assert_eq(loaded_obj.string_prop, obj.string_prop)
+  assert_eq(obj.was_loaded, false)
+  assert_eq(loaded_obj.was_loaded, true)
 
 
 func test_save_simple_array_dict():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   obj.array_prop = [1, 2, 3]
   obj.dict_prop = {"a": 1, "b": 2, "c": 3}
   var save_data = SaveLoader.save(obj)
@@ -30,8 +32,8 @@ func test_save_simple_array_dict():
 
 
 func test_save_nested_objects():
-  var obj = TestObject.new()
-  obj.obj_prop = TestObject.new()
+  var obj = JSLGTestObject.new()
+  obj.obj_prop = JSLGTestObject.new()
   obj.obj_prop.int_prop = 2
   obj.obj_prop.string_prop = "nested"
   var save_data = SaveLoader.save(obj)
@@ -49,8 +51,8 @@ func test_save_nested_objects():
 
 
 func test_save_nested_objects_in_array():
-  var obj = TestObject.new()
-  obj.array_prop = [TestObject.new(), TestObject.new()]
+  var obj = JSLGTestObject.new()
+  obj.array_prop = [JSLGTestObject.new(), JSLGTestObject.new()]
   obj.array_prop[0].int_prop = 2
   obj.array_prop[0].string_prop = "nested"
   obj.array_prop[1].int_prop = 3
@@ -68,8 +70,8 @@ func test_save_nested_objects_in_array():
 
 
 func test_save_nested_objects_in_dict_value():
-  var obj = TestObject.new()
-  obj.dict_prop = {"a": TestObject.new(), "b": TestObject.new()}
+  var obj = JSLGTestObject.new()
+  obj.dict_prop = {"a": JSLGTestObject.new(), "b": JSLGTestObject.new()}
   obj.dict_prop["a"].int_prop = 2
   obj.dict_prop["a"].string_prop = "nested"
   obj.dict_prop["b"].int_prop = 3
@@ -87,8 +89,8 @@ func test_save_nested_objects_in_dict_value():
 
 
 func test_save_nested_objects_in_dict_key():
-  var obj = TestObject.new()
-  obj.dict_prop = {TestObject.new(): 1, TestObject.new(): 2}
+  var obj = JSLGTestObject.new()
+  obj.dict_prop = {JSLGTestObject.new(): 1, JSLGTestObject.new(): 2}
   obj.dict_prop.keys()[0].int_prop = 2
   obj.dict_prop.keys()[0].string_prop = "nested"
   obj.dict_prop.keys()[1].int_prop = 3
@@ -106,7 +108,7 @@ func test_save_nested_objects_in_dict_key():
 
 
 func test_save_nested_arrays():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   obj.array_prop = [[1, 2, 3], [4, 5, 6]]
   var save_data = SaveLoader.save(obj)
   assert_not_null(save_data)
@@ -118,7 +120,7 @@ func test_save_nested_arrays():
 
 
 func test_save_nested_dicts():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   obj.dict_prop = {"a": {"b": 1, "c": 2}, "d": {"e": 3, "f": 4}}
   var save_data = SaveLoader.save(obj)
   assert_not_null(save_data)
@@ -130,7 +132,7 @@ func test_save_nested_dicts():
 
 
 func test_save_mixed_arrays():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   obj.array_prop = [1, "test", [1, 2, 3], {"a": 1, "b": 2}]
   var save_data = SaveLoader.save(obj)
   assert_not_null(save_data)
@@ -147,7 +149,7 @@ func test_load_invalid_data():
 
 
 func test_save_typed_array():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   # Can't set a literal here because Godot can't do it yet.
   obj.typed_array_prop.append(1)
   obj.typed_array_prop.append(2)
@@ -164,7 +166,7 @@ func test_save_typed_array():
 
 
 func test_save_typed_dict():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   # Can't set a literal here because Godot can't do it yet.
   obj.typed_dict_prop["a"] = 1
   obj.typed_dict_prop["b"] = 2
@@ -179,8 +181,8 @@ func test_save_typed_dict():
 
 
 func test_save_enum():
-  var obj = TestObject.new()
-  obj.enum_prop = TestObject.TestEnum.TEST2
+  var obj = JSLGTestObject.new()
+  obj.enum_prop = JSLGTestObject.TestEnum.TEST2
   var save_data = SaveLoader.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
@@ -191,7 +193,7 @@ func test_save_enum():
 
 
 func test_save_builtin_types():
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
 
   obj.vector2_prop = Vector2(2.0, 2.0)
   obj.vector2i_prop = Vector2i(2, 2)
@@ -250,7 +252,7 @@ func test_save_builtin_types():
 
 func test_save_resource_reference():
   var preloaded_resource = preload("uid://itov6b543ess") # The default icon.svg
-  var obj = TestObject.new()
+  var obj = JSLGTestObject.new()
   obj.exported_resource_ref = preloaded_resource
 
   var save_data = SaveLoader.save(obj)
@@ -265,8 +267,8 @@ func test_save_resource_reference():
 
 
 func test_savable_resource_with_uid_use_cached():
-  var preloaded_test_object = preload("uid://c0l7bnq5u8wyx") # test_resource_saved.tres, which is a TestObject.
-  var obj = TestObject.new()
+  var preloaded_test_object = preload("uid://c0l7bnq5u8wyx") # test_resource_saved.tres, which is a JSLGTestObject.
+  var obj = JSLGTestObject.new()
   obj.exported_resource_ref = preloaded_test_object
 
   var save_data = SaveLoader.save(obj)
@@ -278,3 +280,20 @@ func test_savable_resource_with_uid_use_cached():
   assert_not_null(loaded_obj)
   assert_not_null(loaded_obj.exported_resource_ref)
   assert_eq(loaded_obj.exported_resource_ref, preloaded_test_object) # No new instance created.
+
+
+func test_csharp_savable_object():
+  var csharp_obj = JSLGTestObjectCSharp.new()
+  csharp_obj.IntProp = 42
+  csharp_obj.StringProp = "Hello from GDScript"
+
+  var save_data = SaveLoader.save(csharp_obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  var loaded_obj = SaveLoader.load(save_data)
+  assert_true(loaded_obj != null)
+  assert_eq(loaded_obj.IntProp, csharp_obj.IntProp)
+  assert_eq(loaded_obj.StringProp, csharp_obj.StringProp)
+  assert_eq(csharp_obj.WasLoaded, false)
+  assert_eq(loaded_obj.WasLoaded, true)

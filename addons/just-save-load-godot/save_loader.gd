@@ -28,18 +28,35 @@ const key_key : String = "+key"
 # This key marks the value of a dictionary tuple.
 const value_key : String = "+value"
 
+static var __invalid_callable : Callable = func(): pass
+
 # Check an object's savable properties. This is part of the receiver interface.
-static func __has_savable_properties(obj) -> bool:
+static func __get_save_properties_method(obj) -> Callable:
   if not obj is Object:
-    return false
-  return obj.has_method("save_properties")
+    return __invalid_callable
+  if obj.has_method("save_properties"):
+    return obj.save_properties
+  if obj.has_method("SaveProperties"):
+    return obj.SaveProperties
+  return __invalid_callable
+
+
+static func __get_on_load_complete_method(obj) -> Callable:
+  if not obj is Object:
+    return __invalid_callable
+  if obj.has_method("on_load_complete"):
+    return obj.on_load_complete
+  if obj.has_method("OnLoadComplete"):
+    return obj.OnLoadComplete
+  return __invalid_callable
 
 
 # Get an object's savable properties. This is part of the receiver interface.
 static func __get_savable_properties(obj) -> Array:
-  if not __has_savable_properties(obj):
+  var save_properties = __get_save_properties_method(obj)
+  if save_properties == __invalid_callable:
     return []
-  return obj.save_properties()
+  return save_properties.call()
 
 
 # Get an object's class name as it would appear in ClassDB.
@@ -69,7 +86,7 @@ static func __is_savable(obj) -> bool:
     return false
 
   # Object must have savable properties.
-  return __has_savable_properties(obj)
+  return __get_save_properties_method(obj) != __invalid_callable
 
 
 static func __is_ref(obj) -> bool:
@@ -156,7 +173,7 @@ static func __collect(obj : Object) -> Dictionary:
   while collect_queue.size() > 0:
     var next_obj = collect_queue.pop_front()
     __collect_one_reference(collected_objects, next_obj)
-    var props = next_obj.save_properties()
+    var props = __get_save_properties_method(next_obj).call()
     for prop in props:
       var prop_val = next_obj.get(prop)
 
@@ -357,7 +374,7 @@ static func load(save_str: String) -> Object:
     var obj = objects_out[uid]
     var obj_data = object_data[uid]
 
-    var known_fields = obj.save_properties()
+    var known_fields = __get_save_properties_method(obj).call()
     if known_fields == null:
       known_fields = []
 
@@ -390,7 +407,8 @@ static func load(save_str: String) -> Object:
 
   # Call on_load_complete.
   for obj in objects_out.values():
-    if obj.has_method("on_load_complete"):
-      obj.on_load_complete()
+    var on_load_complete = __get_on_load_complete_method(obj)
+    if on_load_complete != __invalid_callable:
+      on_load_complete.call()
 
   return __ref_to_object(objects_out, root_ref)
