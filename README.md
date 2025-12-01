@@ -1,20 +1,18 @@
 # Just Save and Load, Please!
 
-Godot makes it a bit hard to save and load game state. There are many tutorials out there on how to do it, but no obvious, standardized means. This is not surprising, as deciding what data to save (or not) is individual to each game, and restoring a highly interlinked game state is also not at all trivial.
+Godot makes it a bit hard to save and load game state. There are many tutorials out there on how to do it, but no obvious, standardized means. This is not surprising,. Deciding what data to save (or not) is individual to each game, and restoring a highly interlinked game state is also not trivial.
 
-This plugin seeks to add another layer of duct tape by providing a modular, simple way to save and load arbitrary objects.
+This plugin is another layer of duct tape to this problem. It provides a modular, (relatively) simple way to save and load arbitrary objects.
 
 ## This is useful if...
-* You store game state outside of the scene tree, e.g. with a data-oriented pattern that
-  builds the scene tree dynamically.
+* You store game state outside of the scene tree, e.g. with a data-oriented pattern that builds the scene tree dynamically.
 * You want to save a custom class without making it a Resource.
 * You plan on people sharing the data you are saving.
 
 ## This is not useful if...
-* You are trying to save the scene tree. It could potentially sorta work, but would be very buggy, unwieldy, and generally not worth the effort. Use PackedScene instead.
+* You are trying to save the scene tree. It could potentially work, but would be buggy and unwieldy. Prefer PackedScene and/or dynamically building the scene tree from data.
 * You're trying to store other data like textures, etc in your save file. You can still use the plugin to store object data, but you probably want store resource-shaped things alongside in a zip file and load it separately.
-* You're trying to outright replace Resources. Godot does some pretty smart things with
-resources that this plugin does not do. Resources are still very much recommended for assets to be packed with the game.
+* You're trying to outright replace Resources. Godot does some very smart things with resources that this plugin does not do. Resources are still recommended for assets to be packed with the game.
 
 ## Usage
 To be saved, an object needs to satisfy the following requirements:

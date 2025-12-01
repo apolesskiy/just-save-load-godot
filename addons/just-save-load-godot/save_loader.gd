@@ -36,6 +36,9 @@ const float_key : String = "+float"
 # Marker for built-in variants that can be str_to_var'd safely.
 const builtin_key : String = "+builtin"
 
+# Marker for resource UID references.
+const ruid_key : String = "+res"
+
 # Check an object's savable properties. This is part of the receiver interface.
 static func __has_savable_properties(obj) -> bool:
   if not obj is Object:
@@ -214,6 +217,30 @@ static func __get_builtin(obj):
       return null
 
 
+static func __is_exported_resource(obj) -> bool:
+  return obj is Resource \
+    and obj.resource_path != "" \
+    and ResourceLoader.get_resource_uid(obj.resource_path) != ResourceUID.INVALID_ID
+
+
+static func __make_exported_resource(prop) -> Dictionary:
+  if not __is_exported_resource(prop):
+    return {}
+  return {ruid_key: ResourceUID.id_to_text(ResourceLoader.get_resource_uid(prop.resource_path))}
+
+
+static func __get_exported_resource(obj):
+  if not obj is Dictionary:
+    return null
+  if ruid_key not in obj:
+    return null
+  var ruid = ResourceUID.text_to_id(obj[ruid_key])
+  var res = ResourceLoader.load(ResourceUID.get_id_path(ruid))
+  if res == null:
+    print("Warning: failed to load exported resource with UID " + ruid)
+  return res
+
+
 static func __ref_to_object(uid_to_object_map, ref) -> Object:
   if not __is_ref(ref):
     return null
@@ -318,6 +345,9 @@ static func __save_prop(collected_objects, prop_val):
     return __save_array(collected_objects, prop_val)
   elif prop_val is Dictionary:
     return __save_dictionary(collected_objects, prop_val)
+  # Check for exported resources before checking for generic Object.
+  elif __is_exported_resource(prop_val):
+    return __make_exported_resource(prop_val)
   elif prop_val is Object:
     if collected_objects.has(prop_val):
       return __object_to_ref(prop_val)
@@ -363,6 +393,9 @@ static func __load_prop(objects_out, obj_data):
     var resolved_builtin = __get_builtin(obj_data)
     if resolved_builtin != null:
       return resolved_builtin
+    var resolved_resource = __get_exported_resource(obj_data)
+    if resolved_resource != null:
+      return resolved_resource
     return __load_dictionary(objects_out, obj_data)
   if obj_data is Array:
     return __load_array(objects_out, obj_data)

@@ -36,7 +36,8 @@ var packed_float64_array_prop = PackedFloat64Array([1.0, 2.0, 3.0])
 var packed_string_array_prop = PackedStringArray(["a", "b", "c"])
 var packed_vector2_array_prop = PackedVector2Array([Vector2(1, 2), Vector2(3, 4)])
 var packed_vector3_array_prop = PackedVector3Array([Vector3(1, 2, 3), Vector3(4, 5, 6)])
-var packed_color_array_prop = PackedColorArray([Color(1, 0, 0), Color(0, 1, 0)])  
+var packed_color_array_prop = PackedColorArray([Color(1, 0, 0), Color(0, 1, 0)])
+var exported_resource_ref : Resource
 
 var exclude_prop
 
@@ -76,6 +77,7 @@ func save_properties() -> Array:
     "packed_vector2_array_prop",
     "packed_vector3_array_prop",
     "packed_color_array_prop",
+    "exported_resource_ref",
     ]
 
 func test_function():
