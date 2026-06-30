@@ -34,6 +34,8 @@ public partial class JSLGTestObjectCSharp : Resource
 
     public bool WasLoaded { get; set; } = false;
 
+    public bool WasSaved { get; set; } = false;
+
     public Godot.Collections.Array<string> SaveProperties()
     {
         return new Godot.Collections.Array<string>
@@ -50,7 +52,12 @@ public partial class JSLGTestObjectCSharp : Resource
         };
     }
 
-    public void OnLoadComplete()
+    public void PreSave()
+    {
+        WasSaved = true;
+    }
+
+    public void PostLoad()
     {
         WasLoaded = true;
     }

@@ -9,13 +9,13 @@ static func is_exported_resource(obj) -> bool:
     and ResourceLoader.get_resource_uid(obj.resource_path) != ResourceUID.INVALID_ID
 
 
-static func make_exported_resource(prop) -> Dictionary:
+static func pack(prop) -> Dictionary:
   if not is_exported_resource(prop):
     return {}
   return {ruid_key: ResourceUID.id_to_text(ResourceLoader.get_resource_uid(prop.resource_path))}
 
 
-static func get_exported_resource(obj):
+static func unpack(obj):
   if not obj is Dictionary:
     return null
   if ruid_key not in obj:

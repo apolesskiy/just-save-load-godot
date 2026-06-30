@@ -13,7 +13,7 @@
     "gut": { // name must match the folder name in the repository
       "url": "https://github.com/bitwes/Gut",
       // "source": "remote", // default
-      // "checkout": "main", // default
+      "checkout": "godot_4_7", // default
       "subfolder": "addons/gut"
     }
   }

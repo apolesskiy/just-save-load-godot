@@ -1,13 +1,13 @@
-class_name JSLGTestSaveLoader extends GutTest
+class_name JSLGTestJSLG extends GutTest
 
 
 func test_save_simple():
   var obj = JSLGTestObject.new()
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.int_prop, obj.int_prop)
   assert_eq(loaded_obj.string_prop, obj.string_prop)
@@ -15,15 +15,24 @@ func test_save_simple():
   assert_eq(loaded_obj.was_loaded, true)
 
 
+func test_pre_save():
+  var obj = JSLGTestObject.new()
+  assert_eq(obj.was_saved, false)
+  var save_data = JSLG.save(obj)
+  assert_not_null(save_data)
+  # pre_save is called on the source object before it is serialized.
+  assert_eq(obj.was_saved, true)
+
+
 func test_save_simple_array_dict():
   var obj = JSLGTestObject.new()
   obj.array_prop = [1, 2, 3]
   obj.dict_prop = {"a": 1, "b": 2, "c": 3}
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.array_prop, obj.array_prop)
   assert_eq(loaded_obj.dict_prop, obj.dict_prop)
@@ -36,11 +45,11 @@ func test_save_nested_objects():
   obj.obj_prop = JSLGTestObject.new()
   obj.obj_prop.int_prop = 2
   obj.obj_prop.string_prop = "nested"
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_not_null(loaded_obj.obj_prop)
   assert_eq(loaded_obj.obj_prop.int_prop, obj.obj_prop.int_prop)
@@ -57,11 +66,11 @@ func test_save_nested_objects_in_array():
   obj.array_prop[0].string_prop = "nested"
   obj.array_prop[1].int_prop = 3
   obj.array_prop[1].string_prop = "nested2"
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.array_prop[0].int_prop, obj.array_prop[0].int_prop)
   assert_eq(loaded_obj.array_prop[0].string_prop, obj.array_prop[0].string_prop)
@@ -76,11 +85,11 @@ func test_save_nested_objects_in_dict_value():
   obj.dict_prop["a"].string_prop = "nested"
   obj.dict_prop["b"].int_prop = 3
   obj.dict_prop["b"].string_prop = "nested2"
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.dict_prop["a"].int_prop, obj.dict_prop["a"].int_prop)
   assert_eq(loaded_obj.dict_prop["a"].string_prop, obj.dict_prop["a"].string_prop)
@@ -95,11 +104,11 @@ func test_save_nested_objects_in_dict_key():
   obj.dict_prop.keys()[0].string_prop = "nested"
   obj.dict_prop.keys()[1].int_prop = 3
   obj.dict_prop.keys()[1].string_prop = "nested2"
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.dict_prop.keys()[0].int_prop, obj.dict_prop.keys()[0].int_prop)
   assert_eq(loaded_obj.dict_prop.keys()[0].string_prop, obj.dict_prop.keys()[0].string_prop)
@@ -110,11 +119,11 @@ func test_save_nested_objects_in_dict_key():
 func test_save_nested_arrays():
   var obj = JSLGTestObject.new()
   obj.array_prop = [[1, 2, 3], [4, 5, 6]]
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.array_prop, obj.array_prop)
 
@@ -122,11 +131,11 @@ func test_save_nested_arrays():
 func test_save_nested_dicts():
   var obj = JSLGTestObject.new()
   obj.dict_prop = {"a": {"b": 1, "c": 2}, "d": {"e": 3, "f": 4}}
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.dict_prop, obj.dict_prop)
 
@@ -134,17 +143,17 @@ func test_save_nested_dicts():
 func test_save_mixed_arrays():
   var obj = JSLGTestObject.new()
   obj.array_prop = [1, "test", [1, 2, 3], {"a": 1, "b": 2}]
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.array_prop, obj.array_prop)
 
 
 func test_load_invalid_data():
-  var loaded_obj = SaveLoader.load("whargarblgarbage")
+  var loaded_obj = JSLG.load("whargarblgarbage")
   assert_null(loaded_obj)
 
 
@@ -156,11 +165,11 @@ func test_save_typed_array():
   obj.typed_array_prop.append(3)
   print("TYPE >> " + type_string(typeof(obj.typed_array_prop)))
   print("VAL >> " + str(obj.typed_array_prop))
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.typed_array_prop, obj.typed_array_prop)
 
@@ -171,11 +180,11 @@ func test_save_typed_dict():
   obj.typed_dict_prop["a"] = 1
   obj.typed_dict_prop["b"] = 2
   obj.typed_dict_prop["c"] = 3
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.typed_dict_prop, obj.typed_dict_prop)
 
@@ -183,11 +192,11 @@ func test_save_typed_dict():
 func test_save_enum():
   var obj = JSLGTestObject.new()
   obj.enum_prop = JSLGTestObject.TestEnum.TEST2
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.enum_prop, obj.enum_prop)
 
@@ -219,11 +228,11 @@ func test_save_builtin_types():
   obj.packed_vector3_array_prop = PackedVector3Array([Vector3(2, 2, 3), Vector3(3, 5, 6)])
   obj.packed_color_array_prop = PackedColorArray([Color(1, 1, 0), Color(1, 1, 0)])
 
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.vector2_prop, obj.vector2_prop)
   assert_eq(loaded_obj.vector2i_prop, obj.vector2i_prop)
@@ -255,11 +264,11 @@ func test_save_resource_reference():
   var obj = JSLGTestObject.new()
   obj.exported_resource_ref = preloaded_resource
 
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_not_null(loaded_obj.exported_resource_ref)
   assert_eq(loaded_obj.exported_resource_ref, obj.exported_resource_ref)
@@ -271,12 +280,12 @@ func test_savable_resource_with_uid_use_cached():
   var obj = JSLGTestObject.new()
   obj.exported_resource_ref = preloaded_test_object
 
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
   print(save_data)
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_not_null(loaded_obj.exported_resource_ref)
   assert_eq(loaded_obj.exported_resource_ref, preloaded_test_object) # No new instance created.
@@ -288,14 +297,14 @@ func test_save_nan_float():
   var obj = JSLGTestObject.new()
   obj.array_prop = [NAN]
   obj.dict_prop = {"nan": NAN}
-  var save_data = SaveLoader.save(obj)
+  var save_data = JSLG.save(obj)
   # JSON.stringify emits an engine warning when it replaces NaN with null.
   # Assert it so GUT treats it as expected rather than an unexpected error.
   assert_engine_error("NaN")
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_not_null(loaded_obj)
   assert_eq(loaded_obj.array_prop.size(), 1)
   assert_true(is_nan(loaded_obj.array_prop[0]), "Array NaN should round-trip to NAN")
@@ -308,13 +317,22 @@ func test_csharp_savable_object():
   csharp_obj.IntProp = 42
   csharp_obj.StringProp = "Hello from GDScript"
 
-  var save_data = SaveLoader.save(csharp_obj)
+  var save_data = JSLG.save(csharp_obj)
   assert_not_null(save_data)
   assert_ne(save_data, "")
 
-  var loaded_obj = SaveLoader.load(save_data)
+  var loaded_obj = JSLG.load(save_data)
   assert_true(loaded_obj != null)
   assert_eq(loaded_obj.IntProp, csharp_obj.IntProp)
   assert_eq(loaded_obj.StringProp, csharp_obj.StringProp)
   assert_eq(csharp_obj.WasLoaded, false)
   assert_eq(loaded_obj.WasLoaded, true)
+
+
+func test_csharp_pre_save():
+  var csharp_obj = JSLGTestObjectCSharp.new()
+  assert_eq(csharp_obj.WasSaved, false)
+  var save_data = JSLG.save(csharp_obj)
+  assert_not_null(save_data)
+  # PreSave is called on the source object before it is serialized.
+  assert_eq(csharp_obj.WasSaved, true)

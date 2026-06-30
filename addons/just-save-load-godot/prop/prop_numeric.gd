@@ -1,3 +1,4 @@
+# Numeric types (int, float)
 class_name JSLGNumeric
 
 # Godot's JSON parses everything as a float, so we add annotations to 
@@ -5,7 +6,10 @@ class_name JSLGNumeric
 const int_key : String = "+int"
 const float_key : String = "+float"
 
-static func make_numeric(obj) -> Dictionary:
+static func is_numeric(obj) -> bool:
+  return obj is int or obj is float
+
+static func pack(obj) -> Dictionary:
   if obj is int:
     return {int_key: obj}
   elif obj is float:
@@ -13,7 +17,7 @@ static func make_numeric(obj) -> Dictionary:
   return {}
 
 
-static func get_numeric(obj):
+static func unpack(obj):
   if obj is Dictionary:
     if int_key in obj:
       return obj[int_key] as int

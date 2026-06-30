@@ -39,13 +39,17 @@ var packed_vector3_array_prop = PackedVector3Array([Vector3(1, 2, 3), Vector3(4,
 var packed_color_array_prop = PackedColorArray([Color(1, 0, 0), Color(0, 1, 0)])
 var exported_resource_ref : Resource
 var was_loaded = false
+var was_saved = false
 
 var exclude_prop
 
 func who_am_i():
   return get_script().get_global_name()
 
-func on_load_complete():
+func pre_save():
+  was_saved = true
+
+func post_load():
   was_loaded = true
 
 func save_properties() -> Array:

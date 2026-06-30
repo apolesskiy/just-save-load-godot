@@ -1,3 +1,5 @@
+# Godot built-in types that can be safely serialized with var_to_str and str_to_var.
+# This is functionally an allowlist.
 class_name JSLGBuiltIn
 
 # Marker for built-in variants that can be str_to_var'd safely.
@@ -31,13 +33,13 @@ static func is_builtin(obj) -> bool:
     obj is PackedColorArray 
 
 
-static func make_builtin(prop) -> Dictionary:
+static func pack(prop) -> Dictionary:
   if not is_builtin(prop):
     return {}
   return {builtin_key: var_to_str(prop)}
 
 
-static func get_builtin(obj):
+static func unpack(obj):
   if not obj is Dictionary:
     return null
   if builtin_key not in obj:
