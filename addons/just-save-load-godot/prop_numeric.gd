@@ -18,5 +18,9 @@ static func get_numeric(obj):
     if int_key in obj:
       return obj[int_key] as int
     elif float_key in obj:
+      # Json doesn't support +inf, -inf, NaN.
+      # However, NaN will be represented as null.
+      if obj[float_key] == null:
+        return NAN
       return obj[float_key] as float
   return null 

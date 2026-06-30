@@ -282,6 +282,27 @@ func test_savable_resource_with_uid_use_cached():
   assert_eq(loaded_obj.exported_resource_ref, preloaded_test_object) # No new instance created.
 
 
+func test_save_nan_float():
+  # JSON has no NaN literal, so Godot serializes NaN as null. JSLGNumeric must
+  # round-trip it back to NAN. NAN != NAN, so we check with is_nan().
+  var obj = JSLGTestObject.new()
+  obj.array_prop = [NAN]
+  obj.dict_prop = {"nan": NAN}
+  var save_data = SaveLoader.save(obj)
+  # JSON.stringify emits an engine warning when it replaces NaN with null.
+  # Assert it so GUT treats it as expected rather than an unexpected error.
+  assert_engine_error("NaN")
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  var loaded_obj = SaveLoader.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_eq(loaded_obj.array_prop.size(), 1)
+  assert_true(is_nan(loaded_obj.array_prop[0]), "Array NaN should round-trip to NAN")
+  assert_true(loaded_obj.dict_prop.has("nan"))
+  assert_true(is_nan(loaded_obj.dict_prop["nan"]), "Dict NaN should round-trip to NAN")
+
+
 func test_csharp_savable_object():
   var csharp_obj = JSLGTestObjectCSharp.new()
   csharp_obj.IntProp = 42
