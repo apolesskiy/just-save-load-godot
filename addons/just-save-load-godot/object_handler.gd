@@ -10,13 +10,61 @@ const script_class_key : String = "+script_class"
 # Object metadata key
 const metadata_key : String = "+meta"
 
+# Will happen before *this* class's static init.
+static var __packer_registry_mutex : Mutex = Mutex.new()
+static var __packer_registry : Dictionary = {}
+
+static func __metadata_to_packer_registry_key(metadata : Dictionary) -> String:
+  return metadata[engine_class_key] + "+" + metadata[script_class_key]
+
+static func __packer_registry_key_to_metadata(key : String) -> Dictionary:
+  var parts = key.split("+")
+  return {
+    engine_class_key: parts[0],
+    script_class_key: parts[1],
+  }
+
+# Register a packer for a class. This requires an object instance, because there
+# is no way to associate the script class with the object class otherwise.
+static func register_packer(packer_script : Script, example_obj: Object) -> void:
+  # Validate before locking mutex
+  if not packer_script is Script:
+    push_error("Packer must be a script!")
+    return
+
+  if not JSLGSavableTrait.has_static_trait(packer_script):
+    push_error("Packer script %s must implement static JSLGSavableTrait!" % packer_script.resource_path)
+    return
+
+  var md = JSLGObjectHandler.pack_object_metadata(example_obj)
+  var key = JSLGObjectHandler.__metadata_to_packer_registry_key(md)
+
+  JSLGObjectHandler.__packer_registry_mutex.lock()
+  if key in JSLGObjectHandler.__packer_registry:
+    push_error("Packer for class " + key + " is already registered to script " + str(JSLGObjectHandler.__packer_registry[key].resource_path) + "!")
+  else:
+    __packer_registry[key] = packer_script
+  JSLGObjectHandler.__packer_registry_mutex.unlock()
+
+  print("Registered packer for class " + key + ": " + packer_script.resource_path)
+
+
+static func get_packer_for_object(obj) -> Script:
+  var md = JSLGObjectHandler.pack_object_metadata(obj)
+  var key = JSLGObjectHandler.__metadata_to_packer_registry_key(md)
+  JSLGObjectHandler.__packer_registry_mutex.lock()
+  var packer = JSLGObjectHandler.__packer_registry.get(key, null)
+  JSLGObjectHandler.__packer_registry_mutex.unlock()
+  return packer
+
+
 static func pack_object_metadata(obj) -> Dictionary:
   return {
     engine_class_key: JSLGClassUtils.get_object_class_name(obj),
     script_class_key: JSLGClassUtils.get_script_class_name(obj),
   }
 
-# Check if an object complies with the savable receiver interface.
+# Check if an object is savable by JSLG.
 static func is_savable(obj) -> bool:
   if not obj is Object: 
     return false
@@ -24,19 +72,30 @@ static func is_savable(obj) -> bool:
   if JSLGClassUtils.get_object_class_name(obj) == "":
     return false
 
-  if JSLGClassUtils.get_script_class_name(obj) == "":
-    return false
+  # Object implements trait
+  if JSLGSavableTrait.has_trait(obj):
+    return true
 
-  # Object must have savable properties.
-  return JSLGSavableTrait.has_trait(obj)
+  # Check for registered packer. Must be an exact match.
+  var packer = JSLGObjectHandler.get_packer_for_object(obj)
+  return packer != null
 
 
 # Get an object's savable properties.
 static func get_savable_properties(obj) -> Array:
-  var save_properties = JSLGSavableTrait.maybe_save_properties_method(obj)
-  if save_properties == JSLG.INVALID_CALLABLE:
-    return []
-  return save_properties.call()
+  # Implements savable.
+  if JSLGSavableTrait.has_trait(obj):
+    var save_properties = JSLGSavableTrait.maybe_save_properties_method(obj)
+    if save_properties == JSLG.INVALID_CALLABLE:
+      return []
+    return save_properties.call()
+
+  # Packer
+  var packer = JSLGObjectHandler.get_packer_for_object(obj)
+  if packer != null:
+    # Note the static save_properties is called on the packer (Script), passing obj.
+    return JSLGSavableTrait.call_static_save_properties(packer, obj)
+  return []
 
 
 # This is the unique identifier for the reference map.

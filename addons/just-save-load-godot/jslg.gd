@@ -7,7 +7,11 @@ class_name JSLG
 const root_key : String = "+root"
 
 static var INVALID_CALLABLE : Callable = func(): pass
- 
+
+
+static func register_packer(packer_script : Script, example_obj: Object) -> void:
+  JSLGObjectHandler.register_packer(packer_script, example_obj)
+
 
 # Save this save data.
 static func save(to_save: Object) -> String:

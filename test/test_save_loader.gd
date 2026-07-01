@@ -336,3 +336,109 @@ func test_csharp_pre_save():
   assert_not_null(save_data)
   # PreSave is called on the source object before it is serialized.
   assert_eq(csharp_obj.WasSaved, true)
+
+
+# --- Packer feature ---
+# JSLGTestPackerTarget does not implement the savable trait itself; JSLGTestPacker
+# is registered as a packer for it. Registration is idempotent per session, so it
+# lives in before_all.
+func before_all():
+  # Only register once - the packer registry is process-global.
+  if JSLGObjectHandler.get_packer_for_object(JSLGTestPackerTarget.new()) == null:
+    JSLG.register_packer(JSLGTestPacker, JSLGTestPackerTarget.new())
+  if JSLGObjectHandler.get_packer_for_object(JSLGTestPackerTargetCSharp.new()) == null:
+    JSLG.register_packer(JSLGTestPackerCSharp, JSLGTestPackerTargetCSharp.new())
+
+
+func test_packer_save_load():
+  var obj = JSLGTestPackerTarget.new()
+  obj.int_prop = 7
+  obj.string_prop = "packed"
+  var save_data = JSLG.save(obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  var loaded_obj = JSLG.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_true(loaded_obj is JSLGTestPackerTarget)
+  assert_eq(loaded_obj.int_prop, obj.int_prop)
+  assert_eq(loaded_obj.string_prop, obj.string_prop)
+
+
+func test_packer_pre_save():
+  var obj = JSLGTestPackerTarget.new()
+  assert_eq(obj.was_saved, false)
+  JSLG.save(obj)
+  # The packer's static pre_save(obj) runs on the source object before serialization.
+  assert_eq(obj.was_saved, true)
+
+
+func test_packer_post_load():
+  var obj = JSLGTestPackerTarget.new()
+  var save_data = JSLG.save(obj)
+
+  var loaded_obj = JSLG.load(save_data)
+  assert_not_null(loaded_obj)
+  # The source object is not post-loaded; the loaded one is, via the packer's static post_load.
+  assert_eq(obj.was_loaded, false)
+  assert_eq(loaded_obj.was_loaded, true)
+
+
+func test_packer_and_trait_interop():
+  # A trait-based object (JSLGTestObject) referencing a packer-managed object.
+  # Exercises both save mechanisms in a single object graph.
+  var root = JSLGTestObject.new()
+  root.int_prop = 11
+  var packed_child = JSLGTestPackerTarget.new()
+  packed_child.int_prop = 22
+  packed_child.string_prop = "child"
+  root.obj_prop = packed_child
+
+  var save_data = JSLG.save(root)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  var loaded_obj = JSLG.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_eq(loaded_obj.int_prop, root.int_prop)
+  assert_not_null(loaded_obj.obj_prop)
+  assert_true(loaded_obj.obj_prop is JSLGTestPackerTarget)
+  assert_eq(loaded_obj.obj_prop.int_prop, packed_child.int_prop)
+  assert_eq(loaded_obj.obj_prop.string_prop, packed_child.string_prop)
+  # Both mechanisms fired their post_load hook.
+  assert_eq(loaded_obj.was_loaded, true)          # trait post_load
+  assert_eq(loaded_obj.obj_prop.was_loaded, true) # packer static post_load
+
+
+func test_csharp_packer_save_load():
+  var obj = JSLGTestPackerTargetCSharp.new()
+  obj.IntProp = 9
+  obj.StringProp = "csharp packed"
+  var save_data = JSLG.save(obj)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  var loaded_obj = JSLG.load(save_data)
+  assert_not_null(loaded_obj)
+  assert_true(loaded_obj is JSLGTestPackerTargetCSharp)
+  assert_eq(loaded_obj.IntProp, obj.IntProp)
+  assert_eq(loaded_obj.StringProp, obj.StringProp)
+
+
+func test_csharp_packer_pre_save():
+  var obj = JSLGTestPackerTargetCSharp.new()
+  assert_eq(obj.WasSaved, false)
+  JSLG.save(obj)
+  # The packer's static PreSave(obj) runs on the source object before serialization.
+  assert_eq(obj.WasSaved, true)
+
+
+func test_csharp_packer_post_load():
+  var obj = JSLGTestPackerTargetCSharp.new()
+  var save_data = JSLG.save(obj)
+
+  var loaded_obj = JSLG.load(save_data)
+  assert_not_null(loaded_obj)
+  # The source object is not post-loaded; the loaded one is, via the packer's static PostLoad.
+  assert_eq(obj.WasLoaded, false)
+  assert_eq(loaded_obj.WasLoaded, true)
