@@ -59,4 +59,9 @@ static func collect_references(obj : Object) -> Dictionary:
       elif prop_val is Dictionary:
         collect_queue.append_array(__collect_dictionary(collected_objects, prop_val))
 
+    # Nodes save their savable children like property references, so queue them for
+    # traversal too (this also collects deeper descendants).
+    if next_obj is Node:
+      collect_queue.append_array(JSLGNodeTreeHandler.get_savable_children(next_obj))
+
   return collected_objects

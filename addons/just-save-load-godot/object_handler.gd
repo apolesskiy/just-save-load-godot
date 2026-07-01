@@ -150,6 +150,10 @@ static func pack(reference_map, obj : Object) -> Dictionary:
     if prop_to_save == null:
       continue
     obj_dict[prop_name] = prop_to_save
+
+  # Nodes save their savable children as references, in addition to their properties.
+  if obj is Node:
+    obj_dict.merge(JSLGNodeTreeHandler.pack(reference_map, obj))
   return obj_dict
 
 
@@ -173,7 +177,7 @@ static func unpack(objects_out, object_data, uid) -> bool:
 
   for prop_name in packed_data.keys():
     # Skip reserved keys.
-    if prop_name in [metadata_key]:
+    if prop_name in [JSLGObjectHandler.metadata_key, JSLGNodeTreeHandler.children_key]:
       continue
     # Skip fields that aren't savable properties on the target object, with a warning.
     # This is important for security, so a malicious save file can't instantiate

@@ -348,6 +348,11 @@ func before_all():
     JSLG.register_packer(JSLGTestPacker, JSLGTestPackerTarget.new())
   if JSLGObjectHandler.get_packer_for_object(JSLGTestPackerTargetCSharp.new()) == null:
     JSLG.register_packer(JSLGTestPackerCSharp, JSLGTestPackerTargetCSharp.new())
+  # Node packer, used by the node tree tests. Free the throwaway example node.
+  var example_node = JSLGTestPackerNode.new()
+  if JSLGObjectHandler.get_packer_for_object(example_node) == null:
+    JSLG.register_packer(JSLGTestNodePacker, example_node)
+  example_node.free()
 
 
 func test_packer_save_load():
@@ -442,3 +447,143 @@ func test_csharp_packer_post_load():
   # The source object is not post-loaded; the loaded one is, via the packer's static PostLoad.
   assert_eq(obj.WasLoaded, false)
   assert_eq(loaded_obj.WasLoaded, true)
+
+
+# --- Node tree feature ---
+# Savable nodes save and re-parent their savable children automatically, without
+# an explicit "children" property.
+func test_node_no_children():
+  var node = autofree(JSLGTestSavableNode.new())
+  node.int_prop = 5
+  node.string_prop = "root"
+
+  var save_data = JSLG.save(node)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  assert_true(loaded is JSLGTestSavableNode)
+  assert_eq(loaded.int_prop, 5)
+  assert_eq(loaded.string_prop, "root")
+  assert_eq(loaded.get_child_count(), 0)
+
+
+func test_node_with_savable_children():
+  var parent = autofree(JSLGTestSavableNode.new())
+  parent.int_prop = 1
+  var child_a = JSLGTestSavableNode.new()
+  child_a.int_prop = 10
+  child_a.string_prop = "a"
+  var child_b = JSLGTestSavableNode.new()
+  child_b.int_prop = 20
+  child_b.string_prop = "b"
+  parent.add_child(child_a)
+  parent.add_child(child_b)
+
+  var save_data = JSLG.save(parent)
+  assert_not_null(save_data)
+
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  assert_eq(loaded.get_child_count(), 2)
+  var loaded_children = loaded.get_children()
+  # Child order is preserved.
+  assert_eq(loaded_children[0].int_prop, 10)
+  assert_eq(loaded_children[0].string_prop, "a")
+  assert_eq(loaded_children[1].int_prop, 20)
+  assert_eq(loaded_children[1].string_prop, "b")
+  # post_load ran on the loaded children.
+  assert_true(loaded_children[0].was_loaded)
+  assert_true(loaded_children[1].was_loaded)
+
+
+func test_node_with_non_savable_children():
+  var parent = autofree(JSLGTestSavableNode.new())
+  var plain_child = Node.new()  # no trait, no packer -> not savable
+  plain_child.name = "PlainChild"
+  var savable_child = JSLGTestSavableNode.new()
+  savable_child.int_prop = 7
+  parent.add_child(plain_child)
+  parent.add_child(savable_child)
+
+  var save_data = JSLG.save(parent)
+  assert_not_null(save_data)
+
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  # Only the savable child is restored; the plain Node is not saved.
+  assert_eq(loaded.get_child_count(), 1)
+  assert_true(loaded.get_child(0) is JSLGTestSavableNode)
+  assert_eq(loaded.get_child(0).int_prop, 7)
+
+
+func test_node_with_packer_children():
+  var parent = autofree(JSLGTestSavableNode.new())
+  var packer_child = JSLGTestPackerNode.new()  # savable only via registered packer
+  packer_child.int_prop = 99
+  parent.add_child(packer_child)
+
+  var save_data = JSLG.save(parent)
+  assert_not_null(save_data)
+
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  assert_eq(loaded.get_child_count(), 1)
+  assert_true(loaded.get_child(0) is JSLGTestPackerNode)
+  assert_eq(loaded.get_child(0).int_prop, 99)
+
+
+func test_resource_referencing_node_tree():
+  # A savable resource referencing a savable node that has savable children.
+  var root = JSLGTestObject.new()
+  root.int_prop = 3
+  var node = autofree(JSLGTestSavableNode.new())
+  node.int_prop = 50
+  var node_child = JSLGTestSavableNode.new()
+  node_child.int_prop = 60
+  node_child.string_prop = "leaf"
+  node.add_child(node_child)
+  root.obj_prop = node
+
+  var save_data = JSLG.save(root)
+  assert_not_null(save_data)
+
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  assert_eq(loaded.int_prop, 3)
+  assert_not_null(loaded.obj_prop)
+  assert_true(loaded.obj_prop is JSLGTestSavableNode)
+  autofree(loaded.obj_prop)
+  assert_eq(loaded.obj_prop.int_prop, 50)
+  assert_eq(loaded.obj_prop.get_child_count(), 1)
+  assert_eq(loaded.obj_prop.get_child(0).int_prop, 60)
+  assert_eq(loaded.obj_prop.get_child(0).string_prop, "leaf")
+
+
+func test_node_deep_tree():
+  # Savable children are traversed recursively, so grandchildren are saved too.
+  var root = autofree(JSLGTestSavableNode.new())
+  root.int_prop = 1
+  var child = JSLGTestSavableNode.new()
+  child.int_prop = 2
+  var grandchild = JSLGTestSavableNode.new()
+  grandchild.int_prop = 3
+  child.add_child(grandchild)
+  root.add_child(child)
+
+  var save_data = JSLG.save(root)
+  assert_not_null(save_data)
+
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  assert_eq(loaded.get_child_count(), 1)
+  var loaded_child = loaded.get_child(0)
+  assert_eq(loaded_child.int_prop, 2)
+  assert_eq(loaded_child.get_child_count(), 1)
+  assert_eq(loaded_child.get_child(0).int_prop, 3)

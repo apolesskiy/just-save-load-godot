@@ -13,7 +13,7 @@ static func register_packer(packer_script : Script, example_obj: Object) -> void
   JSLGObjectHandler.register_packer(packer_script, example_obj)
 
 
-# Save this save data.
+# Save an object and its references.
 static func save(to_save: Object) -> String:
   if to_save == null:
     push_error("Save failed: root object is null!")
@@ -38,7 +38,7 @@ static func save(to_save: Object) -> String:
 
 
 
-# Load save data into an object.
+# Load objects from a save string.
 static func load(save_str: String) -> Object:
   var json = JSON.new()
   var err = json.parse(save_str)
@@ -77,8 +77,15 @@ static func load(save_str: String) -> Object:
       push_error("Failed to unpack object " + uid)
       return null
 
+  # Assign loaded children to nodes.
+  for uid in objects_out.keys():
+    if not JSLGNodeTreeHandler.unpack(objects_out, object_data, uid):
+      push_error("Failed to unpack savable children for node " + uid)
+      return null
+
   # Call post_load.
   for obj in objects_out.values():
     JSLGSavableTrait.call_post_load(obj)
 
+  # Return root object.
   return JSLGObjectRef.unpack(objects_out, root_ref)
