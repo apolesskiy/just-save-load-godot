@@ -587,3 +587,100 @@ func test_node_deep_tree():
   assert_eq(loaded_child.int_prop, 2)
   assert_eq(loaded_child.get_child_count(), 1)
   assert_eq(loaded_child.get_child(0).int_prop, 3)
+
+
+# --- Model scene feature ---
+# A savable node's model_scene (a PackedScene) is instantiated on load, and its
+# non-savable children are reparented onto the node, restoring static data that was
+# never serialized.
+const MODEL_SCENE = preload("res://test/model_scene.tscn")
+const BLANK_ROOT_MODEL = preload("res://test/blank_root_model.tscn")
+
+
+func test_model_scene_spawn_save_delete_load():
+  # Spawn an authored scene: savable root + savable child + non-savable static child.
+  var instance = MODEL_SCENE.instantiate()
+  instance.model_scene = MODEL_SCENE  # this scene is its own model
+  instance.int_prop = 5
+  var savable_child = instance.get_node("SavableChild")
+  savable_child.int_prop = 222  # runtime state that must survive the round trip
+
+  var save_data = JSLG.save(instance)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  # Delete the spawned tree.
+  instance.free()
+
+  # Load into a fresh tree.
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  # The handler queue_free()s the temporary model instance; let that frame process.
+  await get_tree().process_frame
+  assert_true(loaded is JSLGTestModelNode)
+  assert_eq(loaded.int_prop, 5)
+
+  # One savable child (from save data) and one static child (from the model scene).
+  var savable_children = []
+  var static_children = []
+  for child in loaded.get_children():
+    if child is JSLGTestSavableNode:
+      savable_children.append(child)
+    else:
+      static_children.append(child)
+  assert_eq(savable_children.size(), 1, "savable child restored from save data")
+  assert_eq(savable_children[0].int_prop, 222, "savable child runtime state survived")
+  assert_eq(static_children.size(), 1, "static child restored from model scene")
+  assert_eq(static_children[0].name, "StaticChild")
+
+
+func test_model_scene_non_packedscene_ignored():
+  var node = autofree(JSLGTestModelNode.new())
+  # A non-PackedScene value must be rejected by get_model_scene.
+  node.model_scene = "not a packed scene"
+  assert_null(JSLGNodeTreeHandler.get_model_scene(node))
+
+  # A full save/load with a bogus model_scene still succeeds and spawns nothing.
+  var save_data = JSLG.save(node)
+  assert_not_null(save_data)
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  assert_eq(loaded.get_child_count(), 0)
+
+
+func test_model_scene_none():
+  # No model_scene set: existing node behavior, loads normally with no spawned children.
+  var node = autofree(JSLGTestModelNode.new())
+  node.int_prop = 9
+  assert_null(JSLGNodeTreeHandler.get_model_scene(node))
+
+  var save_data = JSLG.save(node)
+  assert_not_null(save_data)
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  assert_eq(loaded.int_prop, 9)
+  assert_eq(loaded.get_child_count(), 0)
+
+
+func test_model_scene_blank_root():
+  # The model scene's root is a plain (non-savable) Node; it is discarded and its
+  # non-savable children are reparented onto the loaded node.
+  var node = autofree(JSLGTestModelNode.new())
+  node.model_scene = BLANK_ROOT_MODEL
+
+  var save_data = JSLG.save(node)
+  assert_not_null(save_data)
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  autofree(loaded)
+  # The handler queue_free()s the temporary model instance; let that frame process.
+  await get_tree().process_frame
+  assert_eq(loaded.get_child_count(), 2)
+  var names = []
+  for c in loaded.get_children():
+    names.append(c.name)
+  assert_true(names.has(&"StaticA"), "StaticA reparented from model scene")
+  assert_true(names.has(&"StaticB"), "StaticB reparented from model scene")

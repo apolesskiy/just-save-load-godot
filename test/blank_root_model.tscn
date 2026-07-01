@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://d3igoqicxhior"]
+
+[node name="BlankRoot" type="Node"]
+
+[node name="StaticA" type="Node" parent="."]
+
+[node name="StaticB" type="Node" parent="."]
