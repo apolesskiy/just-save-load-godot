@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://dih0pwrmncmee"]
+
+[ext_resource type="Script" uid="uid://n0rmg8blunfa" path="res://test/model_node_2d.gd" id="1_model2d"]
+
+[node name="ModelRoot2D" type="Node2D"]
+script = ExtResource("1_model2d")
+
+[node name="StaticOffsetChild" type="Node2D" parent="."]
+position = Vector2(50, 30)

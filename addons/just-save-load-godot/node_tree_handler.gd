@@ -83,7 +83,8 @@ static func __unpack_model_scene(node : Node, scene : PackedScene):
   for child in temp_root.get_children():
     if not JSLGObjectHandler.is_savable(child):
       child.set_owner(null)
-      child.reparent(node)
+      # Keep local transform to preserve scene offsets.
+      child.reparent(node, false)
   
   # Delete the temp node or it stays in memory forever.
   temp_root.queue_free()

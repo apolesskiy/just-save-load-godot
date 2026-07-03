@@ -595,6 +595,8 @@ func test_node_deep_tree():
 # never serialized.
 const MODEL_SCENE = preload("res://test/model_scene.tscn")
 const BLANK_ROOT_MODEL = preload("res://test/blank_root_model.tscn")
+# A Node2D model: savable root (saves its transform) + a static, offset Node2D child.
+const MODEL_SCENE_2D = preload("res://test/model_scene_2d.tscn")
 
 
 func test_model_scene_spawn_save_delete_load():
@@ -684,3 +686,73 @@ func test_model_scene_blank_root():
     names.append(c.name)
   assert_true(names.has(&"StaticA"), "StaticA reparented from model scene")
   assert_true(names.has(&"StaticB"), "StaticB reparented from model scene")
+
+
+# --- Model scene transform preservation ---
+# When a model_scene's static child is reparented onto the loaded node, its authored
+# local offset must be preserved so its GLOBAL position matches what a plain
+# PackedScene.instantiate() would produce. Regression guard for a bug where the static
+# child spawned displaced by the root's transform (reparent kept the child's global
+# transform relative to the throwaway model root, which sits at the origin, instead of
+# keeping its local offset relative to the loaded node).
+func test_model_scene_2d_child_global_position_preserved():
+  var instance = MODEL_SCENE_2D.instantiate()
+  instance.model_scene = MODEL_SCENE_2D  # this scene is its own model
+  add_child(instance)
+
+  # Move the root away from the origin, then record where the static child sits globally.
+  instance.position = Vector2(100, 100)
+  var offset_child = instance.get_node("StaticOffsetChild")
+  var expected_global_position = offset_child.global_position
+  # Sanity: authored local offset is (50, 30), root at (100, 100) -> child global (150, 130).
+  assert_eq(expected_global_position, Vector2(150, 130), "spawned child global position")
+
+  var save_data = JSLG.save(instance)
+  assert_not_null(save_data)
+  assert_ne(save_data, "")
+
+  # Delete the spawned tree.
+  instance.free()
+
+  # Load into a fresh node.
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  add_child_autoqfree(loaded)
+  # The handler queue_free()s the temporary model instance; let that frame process.
+  await get_tree().process_frame
+
+  var loaded_child = loaded.get_node_or_null("StaticOffsetChild")
+  assert_not_null(loaded_child, "static offset child restored from model scene")
+  assert_true(loaded_child.global_position.is_equal_approx(expected_global_position),
+    "loaded static child global position preserved. expected %s got %s" %
+    [expected_global_position, loaded_child.global_position])
+
+
+# As above, but the root carries a non-trivial transform (translation + rotation + scale),
+# so preserving the child's full global transform - not just its position - is exercised.
+func test_model_scene_2d_child_global_transform_preserved():
+  var instance = MODEL_SCENE_2D.instantiate()
+  instance.model_scene = MODEL_SCENE_2D
+  add_child(instance)
+
+  instance.position = Vector2(100, 100)
+  instance.rotation = deg_to_rad(30)
+  instance.scale = Vector2(2, 2)
+  var offset_child = instance.get_node("StaticOffsetChild")
+  var expected_global_transform = offset_child.global_transform
+
+  var save_data = JSLG.save(instance)
+  assert_not_null(save_data)
+
+  instance.free()
+
+  var loaded = JSLG.load(save_data)
+  assert_not_null(loaded)
+  add_child_autoqfree(loaded)
+  await get_tree().process_frame
+
+  var loaded_child = loaded.get_node_or_null("StaticOffsetChild")
+  assert_not_null(loaded_child, "static offset child restored from model scene")
+  assert_true(loaded_child.global_transform.is_equal_approx(expected_global_transform),
+    "loaded static child global transform preserved. expected %s got %s" %
+    [expected_global_transform, loaded_child.global_transform])

@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://drlj8yegx4orw"]
+[gd_scene format=3 uid="uid://drlj8yegx4orw"]
 
 [ext_resource type="Script" uid="uid://c4mflv24y6njf" path="res://test/model_node.gd" id="1_model"]
 [ext_resource type="Script" uid="uid://des1kdscx7t4c" path="res://test/savable_node.gd" id="2_savable"]
